@@ -1,0 +1,30 @@
+<Layouts.app flash={@flash}>
+  <div class="mx-auto max-w-sm space-y-4">
+    <h1 class="text-2xl font-bold">Kirjaudu sisään</h1>
+
+    <div :if={@error} class="alert alert-error">
+      {@error}
+    </div>
+
+    <.form :let={_f} for={%{}} as={:session} action={~p"/login"} method="post" class="space-y-3">
+      <label class="form-control w-full">
+        <span class="label-text">Käyttäjänimi</span>
+        <input
+          type="text"
+          name="username"
+          value={@username}
+          required
+          autofocus
+          class="input input-bordered w-full"
+        />
+      </label>
+
+      <label class="form-control w-full">
+        <span class="label-text">Salasana</span>
+        <input type="password" name="password" required class="input input-bordered w-full" />
+      </label>
+
+      <button type="submit" class="btn btn-primary w-full">Kirjaudu</button>
+    </.form>
+  </div>
+</Layouts.app>
