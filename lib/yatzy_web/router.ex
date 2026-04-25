@@ -29,14 +29,19 @@ defmodule YatzyWeb.Router do
       live "/games", GamesLive, :index
       live "/games/:id", GameShowLive, :show
       live "/leaderboard", LeaderboardLive, :index
-      live "/users/:id", UserStatsLive, :show
     end
 
     live_session :authenticated, on_mount: [{YatzyWeb.UserAuth, :ensure_authenticated}] do
       live "/settings", SettingsLive, :edit
+      live "/users", UsersLive, :index
       live "/users/new", RegistrationLive, :new
       live "/play", ScoreSheetLive, :new
       live "/play/:id", ScoreSheetLive, :play
+    end
+
+    # Declared AFTER /users/new so that "new" doesn't get matched as :id.
+    live_session :public_user_stats, on_mount: [{YatzyWeb.UserAuth, :mount_current_user}] do
+      live "/users/:id", UserStatsLive, :show
     end
   end
 

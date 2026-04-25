@@ -6,6 +6,7 @@ defmodule Yatzy.Accounts.User do
     field(:username, :string)
     field(:password, :string, virtual: true, redact: true)
     field(:password_hash, :string, redact: true)
+    field(:last_login_at, :utc_datetime)
 
     timestamps(type: :utc_datetime)
   end

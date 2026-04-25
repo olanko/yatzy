@@ -12,8 +12,7 @@ defmodule Yatzy.Application do
       Yatzy.Repo,
       {DNSCluster, query: Application.get_env(:yatzy, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Yatzy.PubSub},
-      # Start a worker by calling: Yatzy.Worker.start_link(arg)
-      # {Yatzy.Worker, arg},
+      Yatzy.Presence,
       # Start to serve requests, typically the last entry
       YatzyWeb.Endpoint
     ]

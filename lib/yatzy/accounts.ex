@@ -60,4 +60,11 @@ defmodule Yatzy.Accounts do
       true -> {:error, :not_found}
     end
   end
+
+  @doc "Stamp the user's `:last_login_at` to now (UTC)."
+  def touch_last_login(%User{} = user) do
+    user
+    |> Ecto.Changeset.change(last_login_at: DateTime.utc_now() |> DateTime.truncate(:second))
+    |> Repo.update()
+  end
 end

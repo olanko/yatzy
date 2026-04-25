@@ -44,8 +44,17 @@ defmodule YatzyWeb.Layouts do
       </.link>
       <.link href={~p"/play"} class="btn btn-sm btn-ghost">Aloita peli</.link>
       <.link href={~p"/leaderboard"} class="btn btn-sm btn-ghost">Tilastot</.link>
-      <.link href={~p"/users/new"} class="btn btn-sm btn-ghost">Lisää käyttäjä</.link>
       <%= if @current_user do %>
+        <div class="join">
+          <.link href={~p"/users"} class="btn btn-sm btn-ghost join-item">Käyttäjät</.link>
+          <.link
+            href={~p"/users/new"}
+            class="btn btn-sm btn-ghost join-item btn-square"
+            title="Lisää käyttäjä"
+          >
+            +
+          </.link>
+        </div>
         <.link
           href={~p"/settings"}
           class="btn btn-sm btn-ghost"

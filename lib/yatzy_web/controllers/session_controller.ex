@@ -11,6 +11,8 @@ defmodule YatzyWeb.SessionController do
   def create(conn, %{"username" => username, "password" => password}) do
     case Accounts.authenticate(username, password) do
       {:ok, user} ->
+        Accounts.touch_last_login(user)
+
         conn
         |> put_flash(:info, "Tervetuloa, #{user.username}!")
         |> UserAuth.log_in_user(user)

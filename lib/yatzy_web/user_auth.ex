@@ -62,12 +62,35 @@ defmodule YatzyWeb.UserAuth do
   end
 
   defp mount_current_user(socket, session) do
-    Phoenix.Component.assign_new(socket, :current_user, fn ->
-      with id when not is_nil(id) <- session["user_id"] do
-        Accounts.get_user(id)
-      end
-    end)
+    socket =
+      Phoenix.Component.assign_new(socket, :current_user, fn ->
+        with id when not is_nil(id) <- session["user_id"] do
+          Accounts.get_user(id)
+        end
+      end)
+
+    track_presence(socket)
+    socket
   end
+
+  defp track_presence(%{assigns: %{current_user: %{id: id, username: username}}} = socket) do
+    if Phoenix.LiveView.connected?(socket) do
+      try do
+        Yatzy.Presence.track(
+          self(),
+          Yatzy.Presence.topic(),
+          to_string(id),
+          %{username: username}
+        )
+      rescue
+        # Presence process not started (e.g. stale dev supervision tree).
+        # Mount must not fail because of this; just skip tracking.
+        ArgumentError -> :ok
+      end
+    end
+  end
+
+  defp track_presence(_socket), do: :ok
 
   defp renew_session(conn) do
     conn
