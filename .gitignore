@@ -44,3 +44,6 @@ npm-debug.log
 # Deploy bundles
 yatzy-deploy.zip
 
+# Local deploy config
+/scripts/.env
+
