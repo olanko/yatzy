@@ -90,7 +90,7 @@ defmodule Yatzy.Games do
   def cancel_game(%Game{} = game), do: set_status(game, :cancelled)
 
   defp set_status(%Game{} = game, status)
-       when status in [:waiting, :active, :ended, :cancelled] do
+       when status in [:active, :ended, :cancelled] do
     case game |> Game.changeset(%{"status" => to_string(status)}) |> Repo.update() do
       {:ok, updated} ->
         broadcast(updated.id, {:game_status_changed, status})

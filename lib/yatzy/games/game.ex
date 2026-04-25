@@ -4,7 +4,7 @@ defmodule Yatzy.Games.Game do
 
   @game_types [:regular, :maxi]
   @full_straight_options [21, 30]
-  @statuses [:waiting, :active, :ended, :cancelled]
+  @statuses [:active, :ended, :cancelled]
 
   def game_types, do: @game_types
   def full_straight_options, do: @full_straight_options
@@ -13,7 +13,6 @@ defmodule Yatzy.Games.Game do
   def type_label(:regular), do: "5 noppaa"
   def type_label(:maxi), do: "Maxi (6 noppaa)"
 
-  def status_label(:waiting), do: "Odottaa pelaajia"
   def status_label(:active), do: "Käynnissä"
   def status_label(:ended), do: "Päättynyt"
   def status_label(:cancelled), do: "Peruutettu"
