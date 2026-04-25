@@ -43,6 +43,14 @@ const Hooks = {
       })
     }
   },
+  NameSuggest: {
+    mounted() {
+      this.handleEvent("name:set", ({id, value}) => {
+        if (id && id !== this.el.id) return
+        this.el.value = value
+      })
+    }
+  },
   EmojiPicker: {
     mounted() {
       const targetSelector = this.el.dataset.target

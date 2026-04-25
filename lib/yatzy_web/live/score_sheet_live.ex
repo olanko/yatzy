@@ -3,7 +3,7 @@ defmodule YatzyWeb.ScoreSheetLive do
 
   import YatzyWeb.GameHelpers
 
-  alias Yatzy.{Accounts, Games, ScoreSheet}
+  alias Yatzy.{Accounts, Games, NameGenerator, ScoreSheet}
   alias Yatzy.Games.{Game, GameScore}
 
   @impl true
@@ -20,7 +20,8 @@ defmodule YatzyWeb.ScoreSheetLive do
        starting_game: false,
        game_form_error: nil,
        winners: nil,
-       subscribed_game_id: nil
+       subscribed_game_id: nil,
+       suggested_name: nil
      )
      |> assign_users()}
   end
@@ -232,11 +233,28 @@ defmodule YatzyWeb.ScoreSheetLive do
   end
 
   def handle_event("open_start_game", _params, socket) do
-    {:noreply, assign(socket, :starting_game, true)}
+    {:noreply,
+     socket
+     |> assign(:starting_game, true)
+     |> assign(:suggested_name, NameGenerator.generate())}
   end
 
   def handle_event("cancel_start_game", _params, socket) do
-    {:noreply, assign(socket, starting_game: false, game_form_error: nil)}
+    {:noreply,
+     assign(socket,
+       starting_game: false,
+       game_form_error: nil,
+       suggested_name: nil
+     )}
+  end
+
+  def handle_event("suggest_name", _params, socket) do
+    name = NameGenerator.generate()
+
+    {:noreply,
+     socket
+     |> assign(:suggested_name, name)
+     |> push_event("name:set", %{id: "game-name-input", value: name})}
   end
 
   def handle_event("start_game", %{"game" => attrs}, socket) do
@@ -599,13 +617,27 @@ defmodule YatzyWeb.ScoreSheetLive do
           <form phx-submit="start_game" class="space-y-3">
             <label class="form-control w-full">
               <span class="label-text">Pelin nimi</span>
-              <input
-                type="text"
-                name="game[name]"
-                required
-                autofocus
-                class="input input-bordered w-full"
-              />
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  id="game-name-input"
+                  name="game[name]"
+                  required
+                  autofocus
+                  value={@suggested_name}
+                  phx-update="ignore"
+                  phx-hook="NameSuggest"
+                  class="input input-bordered flex-1"
+                />
+                <button
+                  type="button"
+                  phx-click="suggest_name"
+                  class="btn btn-ghost btn-square"
+                  title="Vaihda ehdotus"
+                >
+                  🎲
+                </button>
+              </div>
             </label>
             <label class="form-control w-full">
               <span class="label-text">Kommentti</span>
