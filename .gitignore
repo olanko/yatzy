@@ -47,3 +47,6 @@ yatzy-deploy.zip
 # Local deploy config
 /scripts/.env
 
+# Server-side runtime env (only the .example template ships)
+/.env
+

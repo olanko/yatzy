@@ -67,8 +67,8 @@ PORT=4002 mix phx.server
 
 Then visit <http://localhost:4002>.
 
-The seed script creates an initial user `olli` / `yatzyolli`. Edit
-`priv/repo/seeds.exs` to add more.
+There is no seed user. Register the first account at
+<http://localhost:4002/users/new>.
 
 ### Useful tasks
 
