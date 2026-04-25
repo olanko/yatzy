@@ -188,7 +188,13 @@ defmodule YatzyWeb.GamesLive do
         <div class="flex-1 max-w-3xl space-y-4">
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <h1 class="text-3xl font-bold">AltistYatzy 🎲</h1>
-            <.link href={~p"/play"} class="btn btn-sm btn-primary">+ Aloita uusi peli</.link>
+            <.link
+              :if={@current_user}
+              href={~p"/play"}
+              class="btn btn-sm btn-primary"
+            >
+              + Aloita uusi peli
+            </.link>
           </div>
 
           <.game_type_filter enabled_types={@enabled_types} />
