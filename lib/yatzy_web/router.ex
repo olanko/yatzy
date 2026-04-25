@@ -25,16 +25,18 @@ defmodule YatzyWeb.Router do
     delete "/logout", SessionController, :delete
 
     live_session :public, on_mount: [{YatzyWeb.UserAuth, :mount_current_user}] do
-      live "/", ScoreSheetLive, :index
+      live "/", GamesLive, :index
       live "/games", GamesLive, :index
       live "/games/:id", GameShowLive, :show
+      live "/play", ScoreSheetLive, :new
+      live "/play/:id", ScoreSheetLive, :play
       live "/leaderboard", LeaderboardLive, :index
-      live "/users/new", RegistrationLive, :new
       live "/users/:id", UserStatsLive, :show
     end
 
     live_session :authenticated, on_mount: [{YatzyWeb.UserAuth, :ensure_authenticated}] do
       live "/settings", SettingsLive, :edit
+      live "/users/new", RegistrationLive, :new
     end
   end
 

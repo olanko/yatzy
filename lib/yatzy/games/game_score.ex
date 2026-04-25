@@ -14,31 +14,31 @@ defmodule Yatzy.Games.GameScore do
   def maxi_extra_categories, do: @maxi_extra_categories
 
   schema "game_scores" do
-    belongs_to :game, Yatzy.Games.Game
-    belongs_to :user, Yatzy.Accounts.User
-    field :name, :string
+    belongs_to(:game, Yatzy.Games.Game)
+    belongs_to(:user, Yatzy.Accounts.User)
+    field(:name, :string)
 
-    field :ones, :integer
-    field :twos, :integer
-    field :threes, :integer
-    field :fours, :integer
-    field :fives, :integer
-    field :sixes, :integer
-    field :pair, :integer
-    field :two_pairs, :integer
-    field :three_of_a_kind, :integer
-    field :four_of_a_kind, :integer
-    field :small_straight, :integer
-    field :large_straight, :integer
-    field :full_house, :integer
-    field :chance, :integer
-    field :yatzy, :integer
+    field(:ones, :integer)
+    field(:twos, :integer)
+    field(:threes, :integer)
+    field(:fours, :integer)
+    field(:fives, :integer)
+    field(:sixes, :integer)
+    field(:pair, :integer)
+    field(:two_pairs, :integer)
+    field(:three_of_a_kind, :integer)
+    field(:four_of_a_kind, :integer)
+    field(:small_straight, :integer)
+    field(:large_straight, :integer)
+    field(:full_house, :integer)
+    field(:chance, :integer)
+    field(:yatzy, :integer)
 
-    field :three_pairs, :integer
-    field :five_of_a_kind, :integer
-    field :house, :integer
-    field :sauna, :integer
-    field :full_straight, :integer
+    field(:three_pairs, :integer)
+    field(:five_of_a_kind, :integer)
+    field(:house, :integer)
+    field(:sauna, :integer)
+    field(:full_straight, :integer)
 
     timestamps(type: :utc_datetime)
   end

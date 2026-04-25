@@ -3,9 +3,9 @@ defmodule Yatzy.Accounts.User do
   import Ecto.Changeset
 
   schema "users" do
-    field :username, :string
-    field :password, :string, virtual: true, redact: true
-    field :password_hash, :string, redact: true
+    field(:username, :string)
+    field(:password, :string, virtual: true, redact: true)
+    field(:password_hash, :string, redact: true)
 
     timestamps(type: :utc_datetime)
   end

@@ -41,7 +41,8 @@ if config_env() == :prod do
 
   config :yatzy, Yatzy.Repo,
     database: System.get_env("DATABASE_PATH", "yatzy_prod.db"),
-    pool_size: String.to_integer(System.get_env("POOL_SIZE", "5"))
+    pool_size: String.to_integer(System.get_env("POOL_SIZE", "5")),
+    busy_timeout: 5_000
 
   config :yatzy, YatzyWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],

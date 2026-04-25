@@ -71,7 +71,12 @@ defmodule YatzyWeb.SettingsLive do
 
         <section class="space-y-3">
           <h2 class="font-semibold">Käyttäjänimi</h2>
-          <.form for={@username_form} phx-change="validate_username" phx-submit="update_username" class="space-y-3">
+          <.form
+            for={@username_form}
+            phx-change="validate_username"
+            phx-submit="update_username"
+            class="space-y-3"
+          >
             <label class="form-control w-full">
               <input
                 type="text"
@@ -82,7 +87,10 @@ defmodule YatzyWeb.SettingsLive do
                 maxlength="60"
                 class="input input-bordered w-full"
               />
-              <span :if={msg = @username_form[:username].errors |> List.first()} class="text-error text-sm">
+              <span
+                :if={msg = @username_form[:username].errors |> List.first()}
+                class="text-error text-sm"
+              >
                 {translate_error(msg)}
               </span>
             </label>
@@ -101,7 +109,10 @@ defmodule YatzyWeb.SettingsLive do
                 required
                 class="input input-bordered w-full"
               />
-              <span :if={msg = @password_form[:current_password].errors |> List.first()} class="text-error text-sm">
+              <span
+                :if={msg = @password_form[:current_password].errors |> List.first()}
+                class="text-error text-sm"
+              >
                 {translate_error(msg)}
               </span>
             </label>
@@ -115,7 +126,10 @@ defmodule YatzyWeb.SettingsLive do
                 minlength="6"
                 class="input input-bordered w-full"
               />
-              <span :if={msg = @password_form[:password].errors |> List.first()} class="text-error text-sm">
+              <span
+                :if={msg = @password_form[:password].errors |> List.first()}
+                class="text-error text-sm"
+              >
                 {translate_error(msg)}
               </span>
             </label>

@@ -5,6 +5,14 @@ defmodule Yatzy.Games do
   alias Yatzy.Games.{Game, GameScore}
   alias Yatzy.Repo
 
+  def topic(game_id), do: "game:#{game_id}"
+
+  def subscribe(game_id), do: Phoenix.PubSub.subscribe(Yatzy.PubSub, topic(game_id))
+  def unsubscribe(game_id), do: Phoenix.PubSub.unsubscribe(Yatzy.PubSub, topic(game_id))
+
+  defp broadcast(game_id, msg),
+    do: Phoenix.PubSub.broadcast(Yatzy.PubSub, topic(game_id), msg)
+
   @doc """
   Start a new game and create one score row per player.
   `players` is a list of maps with `:name` and optional `:user_id`.
@@ -50,9 +58,16 @@ defmodule Yatzy.Games do
   @doc "Update one category on a score row by its id."
   def set_score(score_id, category, value) when is_atom(category) do
     if category in GameScore.categories() do
-      Repo.get!(GameScore, score_id)
-      |> GameScore.changeset(%{category => value})
-      |> Repo.update()
+      score = Repo.get!(GameScore, score_id)
+
+      case score |> GameScore.changeset(%{category => value}) |> Repo.update() do
+        {:ok, updated} ->
+          broadcast(updated.game_id, {:score_updated, updated})
+          {:ok, updated}
+
+        other ->
+          other
+      end
     else
       {:error, :invalid_category}
     end
@@ -66,6 +81,24 @@ defmodule Yatzy.Games do
     game
     |> Game.changeset(%{"comment" => comment})
     |> Repo.update()
+  end
+
+  @doc "Mark a game as ended. Broadcasts on the game topic."
+  def end_game(%Game{} = game), do: set_status(game, :ended)
+
+  @doc "Mark a game as cancelled. Broadcasts on the game topic."
+  def cancel_game(%Game{} = game), do: set_status(game, :cancelled)
+
+  defp set_status(%Game{} = game, status)
+       when status in [:waiting, :active, :ended, :cancelled] do
+    case game |> Game.changeset(%{"status" => to_string(status)}) |> Repo.update() do
+      {:ok, updated} ->
+        broadcast(updated.id, {:game_status_changed, status})
+        {:ok, updated}
+
+      other ->
+        other
+    end
   end
 
   def list_games(types \\ Game.game_types()) do

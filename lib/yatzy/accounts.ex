@@ -8,7 +8,7 @@ defmodule Yatzy.Accounts do
 
   def list_users do
     import Ecto.Query
-    Repo.all(from u in User, order_by: u.username)
+    Repo.all(from(u in User, order_by: u.username))
   end
 
   def get_user_by_username(username) when is_binary(username) do

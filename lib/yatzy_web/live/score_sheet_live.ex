@@ -1,6 +1,8 @@
 defmodule YatzyWeb.ScoreSheetLive do
   use YatzyWeb, :live_view
 
+  import YatzyWeb.GameHelpers
+
   alias Yatzy.{Accounts, Games, ScoreSheet}
   alias Yatzy.Games.{Game, GameScore}
 
@@ -17,9 +19,85 @@ defmodule YatzyWeb.ScoreSheetLive do
        full_straight_points: 21,
        starting_game: false,
        game_form_error: nil,
-       winners: nil
+       winners: nil,
+       subscribed_game_id: nil
      )
      |> assign_users()}
+  end
+
+  @impl true
+  def handle_params(_params, _uri, %{assigns: %{live_action: :new}} = socket) do
+    {:noreply, socket}
+  end
+
+  def handle_params(%{"id" => raw_id}, _uri, %{assigns: %{live_action: :play}} = socket) do
+    case load_active_game(raw_id) do
+      {:ok, game} ->
+        {players, scores} = build_state_from_game(game)
+
+        {:noreply,
+         socket
+         |> assign(
+           game: game,
+           game_type: game.game_type,
+           full_straight_points: game.full_straight_points,
+           players: players,
+           scores: scores
+         )
+         |> ensure_subscribed(game)}
+
+      :inactive ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Peli ei ole enää käynnissä.")
+         |> push_navigate(to: ~p"/games/#{raw_id}")}
+
+      :not_found ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Peliä ei löytynyt.")
+         |> push_navigate(to: ~p"/")}
+    end
+  end
+
+  defp load_active_game(raw_id) do
+    with {id, ""} <- Integer.parse(to_string(raw_id)),
+         %Game{} = game <- safe_get_game(id) do
+      case game.status do
+        :active -> {:ok, game}
+        _ -> :inactive
+      end
+    else
+      _ -> :not_found
+    end
+  end
+
+  defp ensure_subscribed(socket, %Game{} = game) do
+    current = socket.assigns.subscribed_game_id
+
+    cond do
+      current == game.id ->
+        socket
+
+      true ->
+        if connected?(socket) do
+          if current, do: Games.unsubscribe(current)
+          Games.subscribe(game.id)
+        end
+
+        assign(socket, :subscribed_game_id, game.id)
+    end
+  end
+
+  defp ensure_unsubscribed(socket) do
+    case socket.assigns.subscribed_game_id do
+      nil ->
+        socket
+
+      id ->
+        if connected?(socket), do: Games.unsubscribe(id)
+        assign(socket, :subscribed_game_id, nil)
+    end
   end
 
   defp assign_users(socket) do
@@ -68,7 +146,13 @@ defmodule YatzyWeb.ScoreSheetLive do
   end
 
   def handle_event("dismiss_winner", _params, socket) do
-    {:noreply, assign(socket, :winners, nil)}
+    case socket.assigns.game do
+      %Game{} = game ->
+        {:noreply, push_navigate(socket, to: ~p"/games/#{game.id}")}
+
+      _ ->
+        {:noreply, assign(socket, :winners, nil)}
+    end
   end
 
   def handle_event("rename_player", %{"player" => pid, "value" => name}, socket) do
@@ -162,24 +246,11 @@ defmodule YatzyWeb.ScoreSheetLive do
       |> Map.put("full_straight_points", to_string(socket.assigns.full_straight_points))
 
     case Games.start_game(attrs, socket.assigns.players) do
-      {:ok, {game, score_ids}} ->
-        players =
-          Enum.map(socket.assigns.players, fn p ->
-            Map.put(p, :score_id, Map.fetch!(score_ids, p.id))
-          end)
-
+      {:ok, {game, _score_ids}} ->
         {:noreply,
          socket
-         |> assign(
-           game: game,
-           game_type: game.game_type,
-           full_straight_points: game.full_straight_points,
-           players: players,
-           starting_game: false,
-           game_form_error: nil
-         )
          |> put_flash(:info, "Peli aloitettu: #{game.name}")
-         |> push_event("save_game", %{game_id: game.id})}
+         |> push_navigate(to: ~p"/play/#{game.id}")}
 
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, assign(socket, :game_form_error, format_changeset_error(cs))}
@@ -203,37 +274,74 @@ defmodule YatzyWeb.ScoreSheetLive do
   end
 
   def handle_event("end_game", _params, socket) do
-    winners =
-      find_winners(
-        socket.assigns.players,
-        socket.assigns.scores,
-        socket.assigns.invalid_cells,
-        socket.assigns.game_type
-      )
+    case socket.assigns.game do
+      nil ->
+        {:noreply, socket}
 
-    {:noreply,
-     socket
-     |> assign(:game, nil)
-     |> assign(:winners, winners)
-     |> push_event("clear_game", %{})}
+      game ->
+        Games.end_game(game)
+
+        winners =
+          find_winners(
+            socket.assigns.players,
+            socket.assigns.scores,
+            socket.assigns.invalid_cells,
+            socket.assigns.game_type
+          )
+
+        {:noreply,
+         socket
+         |> assign(:game, %{game | status: :ended})
+         |> assign(:winners, winners)}
+    end
   end
 
-  def handle_event("restore_game", %{"game_id" => raw_id}, socket) do
-    with {id, ""} <- Integer.parse(to_string(raw_id)),
-         %_{} = game <- safe_get_game(id) do
-      {players, scores} = build_state_from_game(game)
+  def handle_event("cancel_game", _params, socket) do
+    case socket.assigns.game do
+      nil ->
+        {:noreply, socket}
 
-      {:noreply,
-       assign(socket,
-         game: game,
-         game_type: game.game_type,
-         full_straight_points: game.full_straight_points,
-         players: players,
-         scores: scores
-       )}
-    else
-      _ ->
-        {:noreply, push_event(socket, "clear_game", %{})}
+      game ->
+        Games.cancel_game(game)
+
+        {:noreply,
+         socket
+         |> ensure_unsubscribed()
+         |> put_flash(:info, "Peli peruutettu.")
+         |> push_navigate(to: ~p"/games/#{game.id}")}
+    end
+  end
+
+  @impl true
+  def handle_info({:chat_message, _} = msg, socket) do
+    if game = socket.assigns.game do
+      send_update(YatzyWeb.ChatComponent,
+        id: "chat-game-#{game.id}",
+        action: msg
+      )
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:score_updated, _score}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_info({:game_status_changed, status}, socket) do
+    case socket.assigns.game do
+      nil ->
+        {:noreply, socket}
+
+      %Game{} = game when status == :cancelled ->
+        {:noreply,
+         socket
+         |> ensure_unsubscribed()
+         |> put_flash(:info, "Peli peruutettiin toisesta välilehdestä.")
+         |> push_navigate(to: ~p"/games/#{game.id}")}
+
+      game ->
+        {:noreply, assign(socket, :game, %{game | status: status})}
     end
   end
 
@@ -347,10 +455,11 @@ defmodule YatzyWeb.ScoreSheetLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <div id="game-session" phx-hook="GameSession" class="space-y-4">
+      <div class="space-y-4">
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <h1 class="text-3xl font-bold">AltistYatzy 🎲</h1>
           <div class="flex gap-2">
+            <.link href={~p"/"} class="btn btn-sm btn-ghost">← Etusivu</.link>
             <button
               :if={is_nil(@game)}
               class="btn btn-sm btn-primary"
@@ -366,6 +475,14 @@ defmodule YatzyWeb.ScoreSheetLive do
               data-confirm="Lopetetaanko peli? (Tulokset jäävät tietokantaan.)"
             >
               Lopeta peli
+            </button>
+            <button
+              :if={@game}
+              class="btn btn-sm btn-error btn-outline"
+              phx-click="cancel_game"
+              data-confirm="Peruutetaanko peli? Pisteet jäävät tietokantaan, mutta peli merkitään peruutetuksi."
+            >
+              Peruuta peli
             </button>
             <button class="btn btn-sm btn-ghost" phx-click="reset" data-confirm="Nollataanko pisteet?">
               Nollaa pisteet
@@ -407,6 +524,9 @@ defmodule YatzyWeb.ScoreSheetLive do
           <div class="w-full">
             <strong>{@game.name}</strong>
             <span class="text-sm opacity-70">· {@game.played_on}</span>
+            <span class={["ml-2", status_badge_class(@game.status)]}>
+              {Game.status_label(@game.status)}
+            </span>
             <span class="badge badge-outline ml-2">{Game.type_label(@game.game_type)}</span>
             <span :if={@game.game_type == :maxi} class="badge badge-outline ml-1">
               Täyssuora {@game.full_straight_points}
@@ -504,6 +624,14 @@ defmodule YatzyWeb.ScoreSheetLive do
         </div>
 
         <div class="flex flex-col lg:flex-row lg:items-start gap-6 justify-center">
+          <.live_component
+            :if={@current_user && @game}
+            module={YatzyWeb.ChatComponent}
+            id={"chat-game-#{@game.id}"}
+            scope={{:game, @game.id}}
+            current_user={@current_user}
+          />
+
           <aside class="rounded-box border border-base-300 p-4 space-y-3 w-full lg:w-64 shrink-0">
             <h2 class="font-semibold">Pelaajat</h2>
             <ul :if={@players != []} class="divide-y divide-base-300">
@@ -568,7 +696,13 @@ defmodule YatzyWeb.ScoreSheetLive do
                 <tr :for={{key, label} <- ScoreSheet.upper_categories()}>
                   <th class="text-right font-medium">{label}</th>
                   <td :for={p <- @players} class="p-1">
-                    <.score_input player={p} category={key} scores={@scores} invalid_cells={@invalid_cells} disabled={is_nil(@game)} />
+                    <.score_input
+                      player={p}
+                      category={key}
+                      scores={@scores}
+                      invalid_cells={@invalid_cells}
+                      disabled={is_nil(@game) or @game.status != :active}
+                    />
                   </td>
                 </tr>
 
@@ -581,7 +715,8 @@ defmodule YatzyWeb.ScoreSheetLive do
 
                 <tr class="bg-base-200 font-semibold">
                   <th class="text-right">
-                    Bonus <span class="text-xs opacity-60">({ScoreSheet.bonus_threshold(@game_type)})</span>
+                    Bonus
+                    <span class="text-xs opacity-60">({ScoreSheet.bonus_threshold(@game_type)})</span>
                   </th>
                   <td :for={p <- @players} class="text-center">
                     {ScoreSheet.bonus(valid_scores(@scores[p.id], @invalid_cells, p.id), @game_type)}
@@ -596,7 +731,13 @@ defmodule YatzyWeb.ScoreSheetLive do
                     </div>
                   </th>
                   <td :for={p <- @players} class="p-1">
-                    <.score_input player={p} category={key} scores={@scores} invalid_cells={@invalid_cells} disabled={is_nil(@game)} />
+                    <.score_input
+                      player={p}
+                      category={key}
+                      scores={@scores}
+                      invalid_cells={@invalid_cells}
+                      disabled={is_nil(@game) or @game.status != :active}
+                    />
                   </td>
                 </tr>
 
@@ -610,7 +751,6 @@ defmodule YatzyWeb.ScoreSheetLive do
             </table>
           </div>
         </div>
-
       </div>
     </Layouts.app>
     """
@@ -644,5 +784,4 @@ defmodule YatzyWeb.ScoreSheetLive do
     />
     """
   end
-
 end

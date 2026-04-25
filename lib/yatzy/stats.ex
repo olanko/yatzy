@@ -98,7 +98,7 @@ defmodule Yatzy.Stats do
 
     from(s in GameScore,
       join: g in assoc(s, :game),
-      where: not is_nil(s.user_id) and g.game_type in ^types,
+      where: not is_nil(s.user_id) and g.game_type in ^types and g.status != :cancelled,
       preload: [game: g]
     )
     |> Repo.all()
@@ -109,7 +109,7 @@ defmodule Yatzy.Stats do
 
     from(s in GameScore,
       join: g in assoc(s, :game),
-      where: s.user_id == ^user_id and g.game_type in ^types,
+      where: s.user_id == ^user_id and g.game_type in ^types and g.status != :cancelled,
       preload: [game: g]
     )
     |> Repo.all()
@@ -121,7 +121,7 @@ defmodule Yatzy.Stats do
 
     from(s in GameScore,
       join: g in assoc(s, :game),
-      where: s.game_id in ^game_ids and g.game_type in ^types,
+      where: s.game_id in ^game_ids and g.game_type in ^types and g.status != :cancelled,
       preload: [game: g]
     )
     |> Repo.all()

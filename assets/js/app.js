@@ -28,16 +28,40 @@ import topbar from "../vendor/topbar"
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
 const Hooks = {
-  GameSession: {
+  ChatScroll: {
+    mounted() { this.scrollToBottom() },
+    updated() { this.scrollToBottom() },
+    scrollToBottom() { this.el.scrollTop = this.el.scrollHeight }
+  },
+  ChatEnter: {
     mounted() {
-      const id = localStorage.getItem("yatzy:game_id")
-      if (id) this.pushEvent("restore_game", {game_id: id})
-
-      this.handleEvent("save_game", ({game_id}) => {
-        localStorage.setItem("yatzy:game_id", game_id)
+      this.el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+          e.preventDefault()
+          this.el.form?.requestSubmit()
+        }
       })
-      this.handleEvent("clear_game", () => {
-        localStorage.removeItem("yatzy:game_id")
+    }
+  },
+  EmojiPicker: {
+    mounted() {
+      const targetSelector = this.el.dataset.target
+      this.el.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-emoji]")
+        if (!btn) return
+        e.preventDefault()
+        const target = document.querySelector(targetSelector)
+        if (!target) return
+        const start = target.selectionStart ?? target.value.length
+        const end = target.selectionEnd ?? target.value.length
+        const emoji = btn.dataset.emoji
+        target.value = target.value.slice(0, start) + emoji + target.value.slice(end)
+        const pos = start + emoji.length
+        target.selectionStart = target.selectionEnd = pos
+        target.focus()
+        target.dispatchEvent(new Event("input", {bubbles: true}))
+        const details = this.el.closest("details")
+        if (details) details.open = false
       })
     }
   }

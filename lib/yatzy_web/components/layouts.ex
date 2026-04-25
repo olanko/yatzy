@@ -38,12 +38,12 @@ defmodule YatzyWeb.Layouts do
   def app(assigns) do
     ~H"""
     <header class="flex items-center justify-end gap-2 px-4 pt-4 sm:px-6 lg:px-8">
-      <.link href={~p"/"} class="btn btn-sm btn-ghost" title="Etusivu">
+      <.link href={~p"/"} class="btn btn-sm btn-ghost" title="Pelit">
         <.icon name="hero-home" class="size-5" />
-        <span class="hidden sm:inline">Etusivu</span>
+        <span class="hidden sm:inline">Pelit</span>
       </.link>
+      <.link href={~p"/play"} class="btn btn-sm btn-ghost">Aloita peli</.link>
       <.link href={~p"/leaderboard"} class="btn btn-sm btn-ghost">Tilastot</.link>
-      <.link href={~p"/games"} class="btn btn-sm btn-ghost">Pelihistoria</.link>
       <.link href={~p"/users/new"} class="btn btn-sm btn-ghost">Lisää käyttäjä</.link>
       <%= if @current_user do %>
         <.link
