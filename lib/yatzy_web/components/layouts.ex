@@ -42,9 +42,9 @@ defmodule YatzyWeb.Layouts do
         <.icon name="hero-home" class="size-5" />
         <span class="hidden sm:inline">Pelit</span>
       </.link>
-      <.link href={~p"/play"} class="btn btn-sm btn-ghost">Aloita peli</.link>
       <.link href={~p"/leaderboard"} class="btn btn-sm btn-ghost">Tilastot</.link>
       <%= if @current_user do %>
+        <.link href={~p"/play"} class="btn btn-sm btn-ghost">Aloita peli</.link>
         <div class="join">
           <.link href={~p"/users"} class="btn btn-sm btn-ghost join-item">Käyttäjät</.link>
           <.link
