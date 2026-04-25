@@ -39,6 +39,10 @@ if config_env() == :prod do
 
   config :yatzy, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  config :yatzy, Yatzy.Repo,
+    database: System.get_env("DATABASE_PATH", "yatzy_prod.db"),
+    pool_size: String.to_integer(System.get_env("POOL_SIZE", "5"))
+
   config :yatzy, YatzyWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
