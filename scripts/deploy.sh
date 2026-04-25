@@ -36,7 +36,8 @@ rm -f "$ZIP"
   zip -rq "$ZIP" . \
     -x "_build/*" "deps/*" ".git/*" ".elixir_ls/*" \
        "yatzy_test.db*" "*.db-shm" "*.db-wal" \
-       "yatzy-deploy.zip" "scripts/.env" \
+       "yatzy-deploy.zip" \
+       ".env" "**/.env" \
        ".DS_Store" "**/.DS_Store"
 )
 
