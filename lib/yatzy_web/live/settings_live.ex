@@ -38,15 +38,6 @@ defmodule YatzyWeb.SettingsLive do
     end
   end
 
-  def handle_event("validate_password", %{"user" => attrs}, socket) do
-    cs =
-      socket.assigns.current_user
-      |> Accounts.change_user_password(attrs)
-      |> Map.put(:action, :validate)
-
-    {:noreply, assign_password_form(socket, cs)}
-  end
-
   def handle_event("update_password", %{"user" => attrs}, socket) do
     %{"current_password" => current} = attrs
 
@@ -101,7 +92,7 @@ defmodule YatzyWeb.SettingsLive do
 
         <section class="space-y-3">
           <h2 class="font-semibold">Vaihda salasana</h2>
-          <.form for={@password_form} phx-change="validate_password" phx-submit="update_password" class="space-y-3">
+          <.form for={@password_form} phx-submit="update_password" class="space-y-3">
             <label class="form-control w-full">
               <span class="label-text">Nykyinen salasana</span>
               <input
@@ -120,7 +111,6 @@ defmodule YatzyWeb.SettingsLive do
               <input
                 type="password"
                 name={@password_form[:password].name}
-                value=""
                 required
                 minlength="6"
                 class="input input-bordered w-full"

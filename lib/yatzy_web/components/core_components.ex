@@ -500,18 +500,33 @@ defmodule YatzyWeb.CoreComponents do
   end
 
   @doc """
-  Translates an error message using gettext.
+  Translates an error message into Finnish and interpolates the opts.
   """
   def translate_error({msg, opts}) do
-    # You can make use of gettext to translate error messages by
-    # uncommenting and adjusting the following code:
+    msg
+    |> translate_message()
+    |> interpolate_opts(opts)
+  end
 
-    # if count = opts[:count] do
-    #   Gettext.dngettext(YatzyWeb.Gettext, "errors", msg, msg, count, opts)
-    # else
-    #   Gettext.dgettext(YatzyWeb.Gettext, "errors", msg, opts)
-    # end
+  defp translate_message("can't be blank"), do: "ei voi olla tyhjä"
+  defp translate_message("is invalid"), do: "on virheellinen"
+  defp translate_message("has already been taken"), do: "on jo käytössä"
+  defp translate_message("has invalid format"), do: "muoto on virheellinen"
+  defp translate_message("must be accepted"), do: "tulee hyväksyä"
+  defp translate_message("does not match confirmation"), do: "ei täsmää"
 
+  defp translate_message("should be at least %{count} character(s)"),
+    do: "tulee olla vähintään %{count} merkkiä"
+
+  defp translate_message("should be at most %{count} character(s)"),
+    do: "tulee olla enintään %{count} merkkiä"
+
+  defp translate_message("should be %{count} character(s)"),
+    do: "tulee olla tasan %{count} merkkiä"
+
+  defp translate_message(other), do: other
+
+  defp interpolate_opts(msg, opts) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->
       String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
     end)
