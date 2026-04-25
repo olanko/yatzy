@@ -2,7 +2,7 @@ defmodule YatzyWeb.ScoreSheetLive do
   use YatzyWeb, :live_view
 
   alias Yatzy.{Accounts, Games, ScoreSheet}
-  alias Yatzy.Games.GameScore
+  alias Yatzy.Games.{Game, GameScore}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -13,6 +13,8 @@ defmodule YatzyWeb.ScoreSheetLive do
        scores: %{},
        invalid_cells: MapSet.new(),
        game: nil,
+       game_type: :regular,
+       full_straight_points: 21,
        starting_game: false,
        game_form_error: nil,
        winners: nil
@@ -33,7 +35,15 @@ defmodule YatzyWeb.ScoreSheetLive do
   def handle_event("update_score", %{"player" => pid, "category" => cat, "value" => raw}, socket) do
     cat_atom = String.to_existing_atom(cat)
     parsed = parse_score(raw)
-    valid? = not is_nil(parsed) and ScoreSheet.valid_score?(cat_atom, parsed)
+
+    valid? =
+      not is_nil(parsed) and
+        ScoreSheet.valid_score?(
+          cat_atom,
+          parsed,
+          socket.assigns.game_type,
+          socket.assigns.full_straight_points
+        )
 
     scores =
       Map.update!(socket.assigns.scores, pid, fn ps ->
@@ -104,6 +114,39 @@ defmodule YatzyWeb.ScoreSheetLive do
     {:noreply, assign(socket, scores: scores, invalid_cells: MapSet.new())}
   end
 
+  def handle_event("set_game_type", %{"game_type" => gt}, socket) do
+    if socket.assigns.game do
+      {:noreply, socket}
+    else
+      game_type =
+        case gt do
+          "maxi" -> :maxi
+          _ -> :regular
+        end
+
+      invalid_cells =
+        revalidate_cells(socket.assigns.scores, game_type, socket.assigns.full_straight_points)
+
+      {:noreply, assign(socket, game_type: game_type, invalid_cells: invalid_cells)}
+    end
+  end
+
+  def handle_event("set_full_straight_points", %{"points" => raw}, socket) do
+    if socket.assigns.game do
+      {:noreply, socket}
+    else
+      points =
+        case Integer.parse(to_string(raw)) do
+          {n, ""} when n in [21, 30] -> n
+          _ -> 21
+        end
+
+      invalid_cells = revalidate_cells(socket.assigns.scores, socket.assigns.game_type, points)
+
+      {:noreply, assign(socket, full_straight_points: points, invalid_cells: invalid_cells)}
+    end
+  end
+
   def handle_event("open_start_game", _params, socket) do
     {:noreply, assign(socket, :starting_game, true)}
   end
@@ -113,6 +156,11 @@ defmodule YatzyWeb.ScoreSheetLive do
   end
 
   def handle_event("start_game", %{"game" => attrs}, socket) do
+    attrs =
+      attrs
+      |> Map.put("game_type", to_string(socket.assigns.game_type))
+      |> Map.put("full_straight_points", to_string(socket.assigns.full_straight_points))
+
     case Games.start_game(attrs, socket.assigns.players) do
       {:ok, {game, score_ids}} ->
         players =
@@ -124,6 +172,8 @@ defmodule YatzyWeb.ScoreSheetLive do
          socket
          |> assign(
            game: game,
+           game_type: game.game_type,
+           full_straight_points: game.full_straight_points,
            players: players,
            starting_game: false,
            game_form_error: nil
@@ -136,9 +186,30 @@ defmodule YatzyWeb.ScoreSheetLive do
     end
   end
 
+  def handle_event("update_game_comment", %{"value" => raw}, socket) do
+    case socket.assigns.game do
+      nil ->
+        {:noreply, socket}
+
+      game ->
+        comment = String.trim(raw)
+        comment = if comment == "", do: nil, else: comment
+
+        case Games.update_game_comment(game, comment) do
+          {:ok, updated} -> {:noreply, assign(socket, :game, updated)}
+          {:error, _} -> {:noreply, socket}
+        end
+    end
+  end
+
   def handle_event("end_game", _params, socket) do
     winners =
-      find_winners(socket.assigns.players, socket.assigns.scores, socket.assigns.invalid_cells)
+      find_winners(
+        socket.assigns.players,
+        socket.assigns.scores,
+        socket.assigns.invalid_cells,
+        socket.assigns.game_type
+      )
 
     {:noreply,
      socket
@@ -152,7 +223,14 @@ defmodule YatzyWeb.ScoreSheetLive do
          %_{} = game <- safe_get_game(id) do
       {players, scores} = build_state_from_game(game)
 
-      {:noreply, assign(socket, game: game, players: players, scores: scores)}
+      {:noreply,
+       assign(socket,
+         game: game,
+         game_type: game.game_type,
+         full_straight_points: game.full_straight_points,
+         players: players,
+         scores: scores
+       )}
     else
       _ ->
         {:noreply, push_event(socket, "clear_game", %{})}
@@ -235,10 +313,10 @@ defmodule YatzyWeb.ScoreSheetLive do
     |> Enum.join(", ")
   end
 
-  defp find_winners(players, scores, invalid_cells) do
+  defp find_winners(players, scores, invalid_cells, game_type) do
     scored =
       Enum.map(players, fn p ->
-        total = ScoreSheet.total(valid_scores(scores[p.id], invalid_cells, p.id))
+        total = ScoreSheet.total(valid_scores(scores[p.id], invalid_cells, p.id), game_type)
         {p, total}
       end)
 
@@ -255,6 +333,14 @@ defmodule YatzyWeb.ScoreSheetLive do
         Map.put(acc, cat, val)
       end
     end)
+  end
+
+  defp revalidate_cells(scores, game_type, full_straight_points) do
+    for {pid, cats} <- scores,
+        {cat, val} <- cats,
+        not ScoreSheet.valid_score?(cat, val, game_type, full_straight_points),
+        into: MapSet.new(),
+        do: {pid, cat}
   end
 
   @impl true
@@ -318,10 +404,72 @@ defmodule YatzyWeb.ScoreSheetLive do
         </div>
 
         <div :if={@game} class="alert alert-info">
-          <div>
+          <div class="w-full">
             <strong>{@game.name}</strong>
             <span class="text-sm opacity-70">· {@game.played_on}</span>
-            <p :if={@game.comment && @game.comment != ""} class="text-sm">{@game.comment}</p>
+            <span class="badge badge-outline ml-2">{Game.type_label(@game.game_type)}</span>
+            <span :if={@game.game_type == :maxi} class="badge badge-outline ml-1">
+              Täyssuora {@game.full_straight_points}
+            </span>
+            <textarea
+              id={"game-comment-#{@game.id}"}
+              rows="2"
+              class="textarea textarea-bordered textarea-sm w-full mt-2"
+              placeholder="Lisää kommentti…"
+              phx-blur="update_game_comment"
+              phx-debounce="500"
+            >{@game.comment}</textarea>
+          </div>
+        </div>
+
+        <div :if={is_nil(@game)} class="flex flex-wrap items-center gap-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium">Pelityyppi:</span>
+            <div class="join">
+              <button
+                type="button"
+                class={[
+                  "btn btn-sm join-item",
+                  @game_type == :regular && "btn-primary",
+                  @game_type != :regular && "btn-outline"
+                ]}
+                phx-click="set_game_type"
+                phx-value-game_type="regular"
+              >
+                Normaali (5 noppaa)
+              </button>
+              <button
+                type="button"
+                class={[
+                  "btn btn-sm join-item",
+                  @game_type == :maxi && "btn-primary",
+                  @game_type != :maxi && "btn-outline"
+                ]}
+                phx-click="set_game_type"
+                phx-value-game_type="maxi"
+              >
+                Maxi (6 noppaa)
+              </button>
+            </div>
+          </div>
+
+          <div :if={@game_type == :maxi} class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium">Täyssuoran pisteet:</span>
+            <div class="join">
+              <button
+                :for={pts <- Game.full_straight_options()}
+                type="button"
+                class={[
+                  "btn btn-sm join-item",
+                  @full_straight_points == pts && "btn-primary",
+                  @full_straight_points != pts && "btn-outline"
+                ]}
+                phx-click="set_full_straight_points"
+                phx-value-points={pts}
+              >
+                {pts}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -432,14 +580,21 @@ defmodule YatzyWeb.ScoreSheetLive do
                 </tr>
 
                 <tr class="bg-base-200 font-semibold">
-                  <th class="text-right">Bonus</th>
+                  <th class="text-right">
+                    Bonus <span class="text-xs opacity-60">({ScoreSheet.bonus_threshold(@game_type)})</span>
+                  </th>
                   <td :for={p <- @players} class="text-center">
-                    {ScoreSheet.bonus(valid_scores(@scores[p.id], @invalid_cells, p.id))}
+                    {ScoreSheet.bonus(valid_scores(@scores[p.id], @invalid_cells, p.id), @game_type)}
                   </td>
                 </tr>
 
-                <tr :for={{key, label} <- ScoreSheet.lower_categories()}>
-                  <th class="text-right font-medium">{label}</th>
+                <tr :for={{key, label} <- ScoreSheet.lower_categories(@game_type)}>
+                  <th class="text-right font-medium">
+                    <div>{label}</div>
+                    <div :if={ScoreSheet.hint(key)} class="text-xs opacity-60 font-normal">
+                      {ScoreSheet.hint(key)}
+                    </div>
+                  </th>
                   <td :for={p <- @players} class="p-1">
                     <.score_input player={p} category={key} scores={@scores} invalid_cells={@invalid_cells} disabled={is_nil(@game)} />
                   </td>
@@ -448,7 +603,7 @@ defmodule YatzyWeb.ScoreSheetLive do
                 <tr class="bg-base-200 font-bold text-lg">
                   <th class="text-right">Summa</th>
                   <td :for={p <- @players} class="text-center">
-                    {ScoreSheet.total(valid_scores(@scores[p.id], @invalid_cells, p.id))}
+                    {ScoreSheet.total(valid_scores(@scores[p.id], @invalid_cells, p.id), @game_type)}
                   </td>
                 </tr>
               </tbody>

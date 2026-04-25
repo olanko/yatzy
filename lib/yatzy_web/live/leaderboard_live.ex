@@ -2,13 +2,34 @@ defmodule YatzyWeb.LeaderboardLive do
   use YatzyWeb, :live_view
 
   alias Yatzy.{Locale, Stats}
+  alias Yatzy.Games.Game
 
   @impl true
   def mount(_params, _session, socket) do
+    enabled_types = MapSet.new(Game.game_types())
+
     {:ok,
      socket
      |> assign(:page_title, "Tilastot")
-     |> assign(:rows, Stats.leaderboard())}
+     |> assign(:enabled_types, enabled_types)
+     |> assign(:rows, Stats.leaderboard(enabled_types))}
+  end
+
+  @impl true
+  def handle_event("toggle_type", %{"type" => raw}, socket) do
+    type = String.to_existing_atom(raw)
+
+    enabled_types =
+      if MapSet.member?(socket.assigns.enabled_types, type) do
+        MapSet.delete(socket.assigns.enabled_types, type)
+      else
+        MapSet.put(socket.assigns.enabled_types, type)
+      end
+
+    {:noreply,
+     socket
+     |> assign(:enabled_types, enabled_types)
+     |> assign(:rows, Stats.leaderboard(enabled_types))}
   end
 
   @impl true
@@ -20,6 +41,8 @@ defmodule YatzyWeb.LeaderboardLive do
           <h1 class="text-3xl font-bold">Tilastot</h1>
           <.link href={~p"/"} class="btn btn-sm btn-ghost">← Takaisin</.link>
         </div>
+
+        <.game_type_filter enabled_types={@enabled_types} />
 
         <p :if={@rows == []} class="text-base-content/70">
           Ei rekisteröityjä pelaajia.

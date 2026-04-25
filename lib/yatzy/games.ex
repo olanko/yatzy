@@ -48,21 +48,30 @@ defmodule Yatzy.Games do
   end
 
   @doc "Update one category on a score row by its id."
-  def set_score(score_id, category, value)
-      when category in [:ones, :twos, :threes, :fours, :fives, :sixes,
-                        :pair, :two_pairs, :three_of_a_kind, :four_of_a_kind,
-                        :small_straight, :large_straight, :full_house, :chance, :yatzy] do
-    Repo.get!(GameScore, score_id)
-    |> GameScore.changeset(%{category => value})
-    |> Repo.update()
+  def set_score(score_id, category, value) when is_atom(category) do
+    if category in GameScore.categories() do
+      Repo.get!(GameScore, score_id)
+      |> GameScore.changeset(%{category => value})
+      |> Repo.update()
+    else
+      {:error, :invalid_category}
+    end
   end
 
   def delete_game!(id) do
     Repo.get!(Game, id) |> Repo.delete!()
   end
 
-  def list_games do
-    from(g in Game, order_by: [desc: g.inserted_at])
+  def update_game_comment(%Game{} = game, comment) do
+    game
+    |> Game.changeset(%{"comment" => comment})
+    |> Repo.update()
+  end
+
+  def list_games(types \\ Game.game_types()) do
+    types = Enum.to_list(types)
+
+    from(g in Game, where: g.game_type in ^types, order_by: [desc: g.inserted_at])
     |> Repo.all()
   end
 

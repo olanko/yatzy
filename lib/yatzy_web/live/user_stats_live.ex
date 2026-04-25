@@ -3,6 +3,7 @@ defmodule YatzyWeb.UserStatsLive do
 
   alias Yatzy.Accounts
   alias Yatzy.{Locale, Stats}
+  alias Yatzy.Games.Game
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -14,14 +15,41 @@ defmodule YatzyWeb.UserStatsLive do
          |> push_navigate(to: ~p"/leaderboard")}
 
       user ->
+        enabled_types = MapSet.new(Game.game_types())
+
         {:ok,
          socket
          |> assign(:page_title, user.username)
          |> assign(:user, user)
-         |> assign(:top_scores, Stats.top_scores(user.id, 10))
-         |> assign(:avg, Stats.avg_score(user.id))
-         |> assign(:h2h, Stats.head_to_head(user.id))}
+         |> assign(:enabled_types, enabled_types)
+         |> assign_stats(enabled_types)}
     end
+  end
+
+  @impl true
+  def handle_event("toggle_type", %{"type" => raw}, socket) do
+    type = String.to_existing_atom(raw)
+
+    enabled_types =
+      if MapSet.member?(socket.assigns.enabled_types, type) do
+        MapSet.delete(socket.assigns.enabled_types, type)
+      else
+        MapSet.put(socket.assigns.enabled_types, type)
+      end
+
+    {:noreply,
+     socket
+     |> assign(:enabled_types, enabled_types)
+     |> assign_stats(enabled_types)}
+  end
+
+  defp assign_stats(socket, enabled_types) do
+    user_id = socket.assigns.user.id
+
+    socket
+    |> assign(:top_scores, Stats.top_scores(user_id, 10, enabled_types))
+    |> assign(:avg, Stats.avg_score(user_id, enabled_types))
+    |> assign(:h2h, Stats.head_to_head(user_id, enabled_types))
   end
 
   @impl true
@@ -33,6 +61,8 @@ defmodule YatzyWeb.UserStatsLive do
           <h1 class="text-3xl font-bold">{@user.username}</h1>
           <.link href={~p"/leaderboard"} class="btn btn-sm btn-ghost">← Tilastot</.link>
         </div>
+
+        <.game_type_filter enabled_types={@enabled_types} />
 
         <section class="space-y-2">
           <h2 class="text-xl font-semibold">Yhteenveto</h2>

@@ -3,18 +3,18 @@ defmodule Yatzy.Stats do
 
   import Ecto.Query
   alias Yatzy.Accounts.User
-  alias Yatzy.Games.GameScore
+  alias Yatzy.Games.{Game, GameScore}
   alias Yatzy.Repo
   alias Yatzy.ScoreSheet
 
   @doc """
   Leaderboard for registered users:
     %{user, games_played, max: %{total, game}, avg, wins}
-  Sorted by wins desc, then avg desc.
+  Sorted by wins desc, then avg desc. Filtered to the given game types.
   """
-  def leaderboard do
-    rows = load_user_rows()
-    games_by_id = group_games(rows)
+  def leaderboard(types \\ Game.game_types()) do
+    rows = load_user_rows(types)
+    games_by_id = group_games(rows, types)
 
     User
     |> Repo.all()
@@ -40,16 +40,16 @@ defmodule Yatzy.Stats do
   end
 
   @doc "Top N scores for a user, each with the game."
-  def top_scores(user_id, limit \\ 10) do
-    user_rows(user_id)
+  def top_scores(user_id, limit \\ 10, types \\ Game.game_types()) do
+    user_rows(user_id, types)
     |> Enum.map(fn r -> %{total: row_total(r), game: r.game} end)
     |> Enum.sort_by(& &1.total, :desc)
     |> Enum.take(limit)
   end
 
   @doc "Average total score for a user, or nil."
-  def avg_score(user_id) do
-    user_rows(user_id) |> Enum.map(&row_total/1) |> avg()
+  def avg_score(user_id, types \\ Game.game_types()) do
+    user_rows(user_id, types) |> Enum.map(&row_total/1) |> avg()
   end
 
   @doc """
@@ -57,9 +57,9 @@ defmodule Yatzy.Stats do
   Returns list sorted by games_played desc:
     %{opponent, games, wins, losses, ties, win_pct}
   """
-  def head_to_head(user_id) do
-    rows = load_user_rows()
-    games_by_id = group_games(rows)
+  def head_to_head(user_id, types \\ Game.game_types()) do
+    rows = load_user_rows(types)
+    games_by_id = group_games(rows, types)
 
     rows
     |> Enum.filter(&(&1.user_id == user_id))
@@ -93,21 +93,37 @@ defmodule Yatzy.Stats do
 
   # ── helpers ────────────────────────────────────────────────────────────────
 
-  defp load_user_rows do
-    from(s in GameScore, where: not is_nil(s.user_id), preload: [:game])
+  defp load_user_rows(types) do
+    types = Enum.to_list(types)
+
+    from(s in GameScore,
+      join: g in assoc(s, :game),
+      where: not is_nil(s.user_id) and g.game_type in ^types,
+      preload: [game: g]
+    )
     |> Repo.all()
   end
 
-  defp user_rows(user_id) do
-    from(s in GameScore, where: s.user_id == ^user_id, preload: [:game])
+  defp user_rows(user_id, types) do
+    types = Enum.to_list(types)
+
+    from(s in GameScore,
+      join: g in assoc(s, :game),
+      where: s.user_id == ^user_id and g.game_type in ^types,
+      preload: [game: g]
+    )
     |> Repo.all()
   end
 
-  defp group_games(rows) do
-    # Need ALL rows for each game (incl. guests) for win calculations
+  defp group_games(rows, types) do
+    types = Enum.to_list(types)
     game_ids = rows |> Enum.map(& &1.game_id) |> Enum.uniq()
 
-    from(s in GameScore, where: s.game_id in ^game_ids, preload: [:game])
+    from(s in GameScore,
+      join: g in assoc(s, :game),
+      where: s.game_id in ^game_ids and g.game_type in ^types,
+      preload: [game: g]
+    )
     |> Repo.all()
     |> Enum.group_by(& &1.game_id)
   end
@@ -120,7 +136,7 @@ defmodule Yatzy.Stats do
           into: %{},
           do: {cat, v}
 
-    ScoreSheet.total(map)
+    ScoreSheet.total(map, row.game.game_type)
   end
 
   defp highest_row(rows), do: Enum.max_by(rows, &row_total/1, fn -> nil end)

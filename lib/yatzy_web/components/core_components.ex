@@ -116,6 +116,38 @@ defmodule YatzyWeb.CoreComponents do
   end
 
   @doc """
+  Renders the regular/maxi game-type filter as a join of toggle buttons.
+
+  Expects `:enabled_types` to be a MapSet of `:regular`/`:maxi` and a
+  `phx-click` event named "toggle_type".
+  """
+  attr :enabled_types, :any, required: true
+  attr :label, :string, default: "Pelityyppi"
+
+  def game_type_filter(assigns) do
+    ~H"""
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-sm font-medium">{@label}:</span>
+      <div class="join">
+        <button
+          :for={type <- Yatzy.Games.Game.game_types()}
+          type="button"
+          class={[
+            "btn btn-sm join-item",
+            MapSet.member?(@enabled_types, type) && "btn-primary",
+            !MapSet.member?(@enabled_types, type) && "btn-outline"
+          ]}
+          phx-click="toggle_type"
+          phx-value-type={type}
+        >
+          {Yatzy.Games.Game.type_label(type)}
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Renders an input with label and error messages.
 
   A `Phoenix.HTML.FormField` may be passed as argument,
