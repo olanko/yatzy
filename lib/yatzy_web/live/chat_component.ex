@@ -3,6 +3,8 @@ defmodule YatzyWeb.ChatComponent do
 
   alias Yatzy.{Chat, Locale}
 
+  @page_size 200
+
   @impl true
   def mount(socket) do
     {:ok,
@@ -10,6 +12,8 @@ defmodule YatzyWeb.ChatComponent do
      |> assign(:subscribed?, false)
      |> assign(:body, "")
      |> assign(:error, nil)
+     |> assign(:oldest_loaded_id, nil)
+     |> assign(:can_load_more, false)
      |> stream(:messages, [])}
   end
 
@@ -37,13 +41,18 @@ defmodule YatzyWeb.ChatComponent do
 
       true ->
         Chat.subscribe(socket.assigns.scope)
-        messages = Chat.list_messages(socket.assigns.scope)
+        messages = Chat.list_messages(socket.assigns.scope, limit: @page_size)
 
         socket
         |> stream(:messages, messages, reset: true)
         |> assign(:subscribed?, true)
+        |> assign(:oldest_loaded_id, oldest_id(messages))
+        |> assign(:can_load_more, length(messages) >= @page_size)
     end
   end
+
+  defp oldest_id([]), do: nil
+  defp oldest_id([first | _]), do: first.id
 
   @impl true
   def handle_event("send", %{"body" => body}, socket) do
@@ -72,6 +81,32 @@ defmodule YatzyWeb.ChatComponent do
     {:noreply, assign(socket, :body, body)}
   end
 
+  def handle_event("load_more", _params, socket) do
+    case socket.assigns.oldest_loaded_id do
+      nil ->
+        {:noreply, socket}
+
+      before_id ->
+        batch =
+          Chat.list_messages(socket.assigns.scope,
+            limit: @page_size,
+            before_id: before_id
+          )
+
+        socket =
+          batch
+          |> Enum.reverse()
+          |> Enum.reduce(socket, fn msg, acc ->
+            stream_insert(acc, :messages, msg, at: 0)
+          end)
+
+        {:noreply,
+         socket
+         |> assign(:oldest_loaded_id, oldest_id(batch) || before_id)
+         |> assign(:can_load_more, length(batch) >= @page_size)}
+    end
+  end
+
   defp format_error(%Ecto.Changeset{} = cs) do
     case Keyword.get(cs.errors, :body) do
       {msg, _} -> "Viesti: #{msg}"
@@ -88,6 +123,15 @@ defmodule YatzyWeb.ChatComponent do
     >
       <div class="flex items-center justify-between">
         <h2 class="font-semibold">Keskustelu</h2>
+        <button
+          :if={@can_load_more}
+          type="button"
+          phx-click="load_more"
+          phx-target={@myself}
+          class="btn btn-ghost btn-xs"
+        >
+          Näytä lisää
+        </button>
       </div>
 
       <div

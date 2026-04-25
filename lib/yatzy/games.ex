@@ -55,6 +55,22 @@ defmodule Yatzy.Games do
     |> Repo.insert!()
   end
 
+  @doc "Delete a player's score row from a game."
+  def remove_player_score(score_id) do
+    Repo.get(GameScore, score_id)
+    |> case do
+      nil -> :ok
+      %GameScore{} = score -> Repo.delete(score)
+    end
+  end
+
+  @doc "Rename a player on a game."
+  def rename_player(score_id, name) when is_binary(name) do
+    Repo.get!(GameScore, score_id)
+    |> GameScore.changeset(%{name: name})
+    |> Repo.update()
+  end
+
   @doc "Update one category on a score row by its id."
   def set_score(score_id, category, value) when is_atom(category) do
     if category in GameScore.categories() do
@@ -113,4 +129,15 @@ defmodule Yatzy.Games do
     |> Repo.get!(id)
     |> Repo.preload(scores: from(s in GameScore, order_by: s.id))
   end
+
+  @doc """
+  True if `user` has a `GameScore` row for `game`. The game's `:scores`
+  must be loaded.
+  """
+  def player?(_game, nil), do: false
+
+  def player?(%Game{scores: scores}, %{id: uid}) when is_list(scores),
+    do: Enum.any?(scores, &(&1.user_id == uid))
+
+  def player?(_, _), do: false
 end

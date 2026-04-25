@@ -26,14 +26,25 @@ defmodule Yatzy.Chat do
   def unsubscribe_recent, do: Phoenix.PubSub.unsubscribe(Yatzy.PubSub, @recent_topic)
 
   @doc """
-  List the most recent messages for the given scope, oldest first, with `:user`
-  preloaded for rendering.
+  List messages for the given scope, **oldest first**, with `:user` preloaded.
+
+  Options:
+    * `:limit` — page size, default 200
+    * `:before_id` — return only messages with `id < before_id` (for "show more")
   """
-  def list_messages(scope, limit \\ 200) do
-    Message
-    |> scope_filter(scope)
-    |> order_by([m], desc: m.inserted_at, desc: m.id)
-    |> limit(^limit)
+  def list_messages(scope, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 200)
+    before_id = Keyword.get(opts, :before_id)
+
+    query =
+      Message
+      |> scope_filter(scope)
+      |> order_by([m], desc: m.inserted_at, desc: m.id)
+      |> limit(^limit)
+
+    query = if before_id, do: from(m in query, where: m.id < ^before_id), else: query
+
+    query
     |> Repo.all()
     |> Repo.preload(:user)
     |> Enum.reverse()

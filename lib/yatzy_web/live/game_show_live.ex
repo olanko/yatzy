@@ -10,6 +10,7 @@ defmodule YatzyWeb.GameShowLive do
   def mount(%{"id" => id}, _session, socket) do
     game = Games.get_game_with_scores!(id)
     ranks = compute_ranks(game.scores, game.game_type)
+    is_player = Games.player?(game, socket.assigns[:current_user])
 
     if connected?(socket) and game.status == :active do
       Games.subscribe(game.id)
@@ -19,7 +20,8 @@ defmodule YatzyWeb.GameShowLive do
      socket
      |> assign(:page_title, game.name)
      |> assign(:game, game)
-     |> assign(:ranks, ranks)}
+     |> assign(:ranks, ranks)
+     |> assign(:is_player, is_player)}
   end
 
   @impl true
@@ -100,7 +102,7 @@ defmodule YatzyWeb.GameShowLive do
           </div>
           <div class="flex gap-2">
             <.link
-              :if={@game.status == :active}
+              :if={@game.status == :active and @is_player}
               navigate={~p"/play/#{@game.id}"}
               class="btn btn-sm btn-primary"
             >

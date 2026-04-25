@@ -28,24 +28,31 @@ defmodule YatzyWeb.ScoreSheetLive do
 
   @impl true
   def handle_params(_params, _uri, %{assigns: %{live_action: :new}} = socket) do
-    {:noreply, socket}
+    {:noreply, maybe_add_self_player(socket)}
   end
 
   def handle_params(%{"id" => raw_id}, _uri, %{assigns: %{live_action: :play}} = socket) do
     case load_active_game(raw_id) do
       {:ok, game} ->
-        {players, scores} = build_state_from_game(game)
+        if Games.player?(game, socket.assigns.current_user) do
+          {players, scores} = build_state_from_game(game)
 
-        {:noreply,
-         socket
-         |> assign(
-           game: game,
-           game_type: game.game_type,
-           full_straight_points: game.full_straight_points,
-           players: players,
-           scores: scores
-         )
-         |> ensure_subscribed(game)}
+          {:noreply,
+           socket
+           |> assign(
+             game: game,
+             game_type: game.game_type,
+             full_straight_points: game.full_straight_points,
+             players: players,
+             scores: scores
+           )
+           |> ensure_subscribed(game)}
+        else
+          {:noreply,
+           socket
+           |> put_flash(:error, "Et ole pelaajana tässä pelissä.")
+           |> push_navigate(to: ~p"/games/#{game.id}")}
+        end
 
       :inactive ->
         {:noreply,
@@ -58,6 +65,30 @@ defmodule YatzyWeb.ScoreSheetLive do
          socket
          |> put_flash(:error, "Peliä ei löytynyt.")
          |> push_navigate(to: ~p"/")}
+    end
+  end
+
+  defp maybe_add_self_player(socket) do
+    user = socket.assigns.current_user
+
+    cond do
+      is_nil(user) ->
+        socket
+
+      Enum.any?(socket.assigns.players, &(&1.user_id == user.id)) ->
+        socket
+
+      true ->
+        new_player = %{
+          id: "p#{System.unique_integer([:positive])}",
+          name: user.username,
+          user_id: user.id,
+          score_id: nil
+        }
+
+        players = socket.assigns.players ++ [new_player]
+        scores = Map.put(socket.assigns.scores, new_player.id, %{})
+        assign(socket, players: players, scores: scores)
     end
   end
 
@@ -157,10 +188,19 @@ defmodule YatzyWeb.ScoreSheetLive do
   end
 
   def handle_event("rename_player", %{"player" => pid, "value" => name}, socket) do
+    name = name |> to_string() |> String.trim()
+
     players =
       Enum.map(socket.assigns.players, fn
-        %{id: ^pid} = p -> %{p | name: name}
-        p -> p
+        %{id: ^pid, score_id: sid} = p when not is_nil(sid) ->
+          if name != "", do: Games.rename_player(sid, name)
+          %{p | name: name}
+
+        %{id: ^pid} = p ->
+          %{p | name: name}
+
+        p ->
+          p
       end)
 
     {:noreply, assign(socket, :players, players)}
@@ -182,6 +222,14 @@ defmodule YatzyWeb.ScoreSheetLive do
   end
 
   def handle_event("remove_player", %{"player" => pid}, socket) do
+    case Enum.find(socket.assigns.players, &(&1.id == pid)) do
+      %{score_id: sid} when not is_nil(sid) ->
+        Games.remove_player_score(sid)
+
+      _ ->
+        :ok
+    end
+
     players = Enum.reject(socket.assigns.players, &(&1.id == pid))
     scores = Map.delete(socket.assigns.scores, pid)
 
@@ -262,6 +310,8 @@ defmodule YatzyWeb.ScoreSheetLive do
       attrs
       |> Map.put("game_type", to_string(socket.assigns.game_type))
       |> Map.put("full_straight_points", to_string(socket.assigns.full_straight_points))
+
+    socket = maybe_add_self_player(socket)
 
     case Games.start_game(attrs, socket.assigns.players) do
       {:ok, {game, _score_ids}} ->

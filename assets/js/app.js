@@ -29,8 +29,17 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 
 const Hooks = {
   ChatScroll: {
-    mounted() { this.scrollToBottom() },
-    updated() { this.scrollToBottom() },
+    mounted() {
+      this.atBottom = true
+      this.scrollToBottom()
+      this.el.addEventListener("scroll", () => {
+        const dist = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight
+        this.atBottom = dist < 50
+      })
+    },
+    updated() {
+      if (this.atBottom) this.scrollToBottom()
+    },
     scrollToBottom() { this.el.scrollTop = this.el.scrollHeight }
   },
   ChatEnter: {

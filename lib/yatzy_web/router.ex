@@ -28,8 +28,6 @@ defmodule YatzyWeb.Router do
       live "/", GamesLive, :index
       live "/games", GamesLive, :index
       live "/games/:id", GameShowLive, :show
-      live "/play", ScoreSheetLive, :new
-      live "/play/:id", ScoreSheetLive, :play
       live "/leaderboard", LeaderboardLive, :index
       live "/users/:id", UserStatsLive, :show
     end
@@ -37,6 +35,8 @@ defmodule YatzyWeb.Router do
     live_session :authenticated, on_mount: [{YatzyWeb.UserAuth, :ensure_authenticated}] do
       live "/settings", SettingsLive, :edit
       live "/users/new", RegistrationLive, :new
+      live "/play", ScoreSheetLive, :new
+      live "/play/:id", ScoreSheetLive, :play
     end
   end
 
